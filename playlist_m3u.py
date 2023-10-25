@@ -137,9 +137,13 @@ class YouTubePlaylistDownloader:
                     for video in videos:
                         try:
                             video_file = f'{video["video_id"]}.{self.video_format}'
+                            if self.video_format == "mp4":
+                                video_path = f"./Video/{video_file}"
+                            else:
+                                video_path = f"./Audio/{video_file}"
                             playlist.add_entry(
                                 video["video_name"],
-                                video_file,
+                                video_path,
                             )
                             if not os.path.exists(f"{self.output_path}/{video_file}"):
                                 yt = YouTube(video["video_url"])

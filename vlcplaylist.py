@@ -4,8 +4,7 @@ class VLCPlaylistGenerator:
         self.playlist_name = playlist_name
         self.entries = []
 
-    def add_entry(self, video_name, video_file):
-        video_path = f"./Videos/{video_file}"
+    def add_entry(self, video_name, video_path):
         self.entries.append((video_name, video_path))
 
     def generate_playlist(self):
