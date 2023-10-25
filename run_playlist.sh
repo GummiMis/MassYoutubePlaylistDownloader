@@ -44,5 +44,5 @@ while [[ $# -gt 1 ]]; do
 done
 
 workon playlist_m3u
-cd ~/MassYoutubePlaylistDownloader
-python3 playlist_vlc.py "$username" --format "$video_format" --output-dir "$output_dir"
+cd ~/Youtube-Mass-Playlist-Downloader
+python3 playlist_m3u.py "$username" --format "$video_format" --output-dir "$output_dir"
