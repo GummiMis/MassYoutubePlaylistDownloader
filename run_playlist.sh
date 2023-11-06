@@ -45,4 +45,5 @@ done
 
 workon playlist_m3u
 cd ~/Youtube-Mass-Playlist-Downloader
+playwright install
 python3 playlist_m3u.py "$username" --format "$video_format" --output-dir "$output_dir"
