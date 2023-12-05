@@ -7,10 +7,12 @@ from pytube import YouTube
 from pytube.exceptions import VideoPrivate, MembersOnly, AgeRestrictedError
 from playwright.sync_api import sync_playwright
 from vlcplaylist import VLCPlaylistGenerator
+import ssl
 
 
 class YouTubePlaylistDownloader:
     def __init__(self, url, video_format, output_dir):
+        ssl._create_default_https_context = ssl._create_stdlib_context
         username = self.__extract_username(url)
         if username:
             self.url = f"https://youtube.com/@{username}/playlists"
