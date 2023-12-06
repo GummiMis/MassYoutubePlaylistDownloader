@@ -88,7 +88,6 @@ class YouTubePlaylistDownloader:
                 page.wait_for_load_state("load", timeout=5000)
                 lang_selector = page.get_by_role("button", name="Down arrow")
                 if lang_selector.count():
-                    # If the element with terms of use is found, switch the language of the page to "English" and click on the "Accept all" button
                     lang_selector.click()
                     page.get_by_role("menuitem", name="English", exact=True).click()
                     page.get_by_role("button", name="Accept all").click()
@@ -110,7 +109,6 @@ class YouTubePlaylistDownloader:
                     )
                     playlist_url = f'https://www.youtube.com{playlist.query_selector("#view-more a").get_attribute("href")}'
                     data.append({"playlist": playlist_name, "url": playlist_url})
-                    # print(f"Found playlist - {playlist_name}")
                 playlists = None
                 full_data = data.copy()
                 for index, playlist in enumerate(data):
@@ -157,7 +155,6 @@ class YouTubePlaylistDownloader:
             )
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 futures = []
-                # for videos in single_playlist["videos"]:
                 videos = single_playlist["videos"][0]
                 for video in videos:
                     try:
