@@ -50,6 +50,23 @@ class YouTubePlaylistDownloader:
         sanitized = re.sub(r"__+", "-", name).strip()
         return sanitized
 
+    @staticmethod
+    def __scroll_page(page, selector):
+        num_selector = 0
+        try:
+            page.wait_for_selector(selector, timeout=500)
+            while True:
+                selectors = page.query_selector_all(selector)
+                if num_selector == len(selectors):
+                    break
+                else:
+                    num_selector = len(selectors)
+                    page.mouse.wheel(0, page.viewport_size["height"] * 5)
+                    page.wait_for_timeout(1000)
+            return selectors
+        except:
+            return None
+
     def extract_data(self, data):
         results = []
         if isinstance(data, dict):
@@ -65,11 +82,10 @@ class YouTubePlaylistDownloader:
     def collect_playlists(self):
         if hasattr(self, "destination_folder"):
             with sync_playwright() as p:
-                browser = p.chromium.launch()
+                browser = p.chromium.launch()  # headless=False)
                 page = browser.new_page()
                 page.goto(self.url)
                 page.wait_for_load_state("load", timeout=5000)
-                page.keyboard.press("Control+ArrowDown")
                 lang_selector = page.get_by_role("button", name="Down arrow")
                 if lang_selector.count():
                     # If the element with terms of use is found, switch the language of the page to "English" and click on the "Accept all" button
@@ -77,12 +93,16 @@ class YouTubePlaylistDownloader:
                     page.get_by_role("menuitem", name="English", exact=True).click()
                     page.get_by_role("button", name="Accept all").click()
                     page.wait_for_load_state("load", timeout=5000)
-                # To load the whole page, we try swiping it 5 times just in case
-                for i in range(5):
-                    page.keyboard.press("Control+ArrowDown")
-                    i += 1
+                while True:
+                    playlists = self.__scroll_page(
+                        page, "#details.style-scope.ytd-grid-playlist-renderer"
+                    )
+                    if playlists != None:
+                        break
+                    page.goto(self.url)
+                    page.wait_for_load_state("load", timeout=5000)
+
                 data = []
-                playlists = page.query_selector_all("#items #details")
                 for index, playlist in enumerate(playlists, start=1):
                     playlist_name = (
                         "{:02d}-".format(index)
@@ -90,24 +110,26 @@ class YouTubePlaylistDownloader:
                     )
                     playlist_url = f'https://www.youtube.com{playlist.query_selector("#view-more a").get_attribute("href")}'
                     data.append({"playlist": playlist_name, "url": playlist_url})
+                    # print(f"Found playlist - {playlist_name}")
+                playlists = None
                 full_data = data.copy()
                 for index, playlist in enumerate(data):
-                    page.goto(playlist["url"])
-                    page.wait_for_selector("div h3 a", timeout=2000)
-                    # We are now on page one of the playlists, ready for parsing.
-                    for i in range(5):
-                        page.keyboard.press("Control+ArrowDown")
-                        i += 1
+                    while True:
+                        page.goto(playlist["url"])
+                        page.wait_for_load_state("load", timeout=5000)
+                        videos_list = self.__scroll_page(page, "div h3 a")
+                        if videos_list != None:
+                            break
                     video_data = []
-                    videos_list = page.query_selector_all("div h3 a")
-                    for video in videos_list:
+                    for num_video, video in enumerate(videos_list, start=1):
                         video_name = (
-                            f"{self.__sanitize_name(video.text_content().strip())}"
+                            "{:02d}-".format(num_video)
+                            + f"{self.__sanitize_name(video.text_content().strip())}"
                         )
                         video_href = video.get_attribute("href")
-                        if "&" in video_href:
-                            video_href = video_href.split("&")[0]
-                        video_url = f"https://www.youtube.com{video_href}"
+                        video_url = (
+                            f"https://www.youtube.com{video_href.split(" & ")[0]}"
+                        )
                         video_id = (
                             video_href.split("&")[0].split("v=")[-1].split("/")[-1]
                         )
@@ -135,43 +157,44 @@ class YouTubePlaylistDownloader:
             )
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 futures = []
-                for videos in single_playlist["videos"]:
-                    for video in videos:
-                        try:
-                            video_file = f'{video["video_id"]}.{self.video_format}'
-                            if self.video_format == "mp4":
-                                video_path = f"./Video/{video_file}"
+                # for videos in single_playlist["videos"]:
+                videos = single_playlist["videos"][0]
+                for video in videos:
+                    try:
+                        video_file = f'{video["video_id"]}.{self.video_format}'
+                        if self.video_format == "mp4":
+                            video_path = f"./Video/{video_file}"
+                        else:
+                            video_path = f"./Audio/{video_file}"
+                        playlist.add_entry(
+                            video["video_name"],
+                            video_path,
+                        )
+                        if not os.path.exists(f"{self.output_path}/{video_file}"):
+                            yt = YouTube(video["video_url"])
+                            streams = yt.streams
+                            if self.video_format == "mp3":
+                                yt_stream = streams.filter(only_audio=True).first()
                             else:
-                                video_path = f"./Audio/{video_file}"
-                            playlist.add_entry(
+                                yt_stream = streams.get_highest_resolution()
+                            future = executor.submit(
+                                self.__download_video,
+                                yt_stream,
+                                self.output_path,
+                                video_file,
                                 video["video_name"],
-                                video_path,
                             )
-                            if not os.path.exists(f"{self.output_path}/{video_file}"):
-                                yt = YouTube(video["video_url"])
-                                streams = yt.streams
-                                if self.video_format == "mp3":
-                                    yt_stream = streams.filter(only_audio=True).first()
-                                else:
-                                    yt_stream = streams.get_highest_resolution()
-                                future = executor.submit(
-                                    self.__download_video,
-                                    yt_stream,
-                                    self.output_path,
-                                    video_file,
-                                    video["video_name"],
-                                )
-                                futures.append(future)
-                            else:
-                                print(f'Video {video["video_name"]} already exists')
-                        except (
-                            VideoPrivate,
-                            MembersOnly,
-                            AgeRestrictedError,
-                        ):
-                            print(
-                                f'\033[93m\n\nVideo {video["video_name"]} is not allowed to be downloaded!\n\n\033[0;0m'
-                            )
+                            futures.append(future)
+                        else:
+                            print(f'Video {video["video_name"]} already exists')
+                    except (
+                        VideoPrivate,
+                        MembersOnly,
+                        AgeRestrictedError,
+                    ):
+                        print(
+                            f'\033[93m\n\nVideo {video["video_name"]} is not allowed to be downloaded!\n\n\033[0;0m'
+                        )
                 concurrent.futures.wait(futures)
             playlist.generate_playlist()
         return True
