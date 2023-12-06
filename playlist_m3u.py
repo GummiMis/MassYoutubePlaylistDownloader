@@ -82,7 +82,7 @@ class YouTubePlaylistDownloader:
     def collect_playlists(self):
         if hasattr(self, "destination_folder"):
             with sync_playwright() as p:
-                browser = p.chromium.launch()  # headless=False)
+                browser = p.chromium.launch()
                 page = browser.new_page()
                 page.goto(self.url)
                 page.wait_for_load_state("load", timeout=5000)
